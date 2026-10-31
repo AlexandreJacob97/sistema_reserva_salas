@@ -1,0 +1,63 @@
+services:
+  api:
+    build:
+      context: .
+    environment:
+      PORT: 3000
+      MYSQL_HOST: db
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: reserve_me
+      MYSQL_USER: reserve_app
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-local_dev_password}
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: reserve_me
+      MYSQL_USER: reserve_app
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-local_dev_password}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local_dev_root_password}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test:
+        - CMD
+        - mysqladmin
+        - ping
+        - -h
+        - 127.0.0.1
+        - "-u$$MYSQL_USER"
+        - "-p$$MYSQL_PASSWORD"
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  frontend:
+    build:
+      context: ../frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  mysql_data:

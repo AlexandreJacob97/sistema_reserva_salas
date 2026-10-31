@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Consulte as salas disponíveis e acompanhe as solicitações de reserva."
+    />
+    <title>Salas e reservas | reserve.me</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Creepster&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="reservas.js" defer></script>
+  </head>
+  <body class="reservations-body">
+    <div class="reservations-page">
+      <header class="reservations-header">
+        <a class="brand reservations-brand" href="index.html" aria-label="reserve.me — página inicial">
+          reserve<span>.me</span>
+        </a>
+        <a class="reservations-back-link" href="index.html">Voltar para entrar</a>
+      </header>
+
+      <main class="reservations-main">
+        <section class="reservations-hero" aria-labelledby="reservations-title">
+          <span class="reservations-eyebrow">ESPAÇOS DA ESCOLA</span>
+          <h1 id="reservations-title">Salas e reservas</h1>
+          <p>Consulte os espaços disponíveis e acompanhe as solicitações.</p>
+        </section>
+
+        <section class="rooms-section" aria-labelledby="rooms-title">
+          <div class="section-heading">
+            <div>
+              <span class="reservations-eyebrow">CONHEÇA OS ESPAÇOS</span>
+              <h2 id="rooms-title">Nossas salas</h2>
+            </div>
+            <span class="section-count" id="rooms-count" aria-live="polite"></span>
+          </div>
+          <div class="room-grid" id="room-list" aria-live="polite"></div>
+        </section>
+
+        <section class="reservation-layout" aria-label="Solicitar e acompanhar reservas">
+          <section class="reservation-form-panel" aria-labelledby="request-title">
+            <span class="reservations-eyebrow">NOVO PEDIDO</span>
+            <h2 id="request-title">Solicitar reserva</h2>
+            <p class="panel-description">
+              Preencha os dados. A solicitação será enviada com situação pendente.
+            </p>
+
+            <form class="reservation-form" id="reservation-form">
+              <label class="reservation-field">
+                <span>Sala <span aria-hidden="true">*</span></span>
+                <select id="room-id" name="roomId" required>
+                  <option value="">Selecione uma sala</option>
+                </select>
+              </label>
+              <label class="reservation-field">
+                <span>Data <span aria-hidden="true">*</span></span>
+                <input id="requested-date" name="date" type="date" required />
+              </label>
+              <div class="time-fields">
+                <label class="reservation-field">
+                  <span>Início <span aria-hidden="true">*</span></span>
+                  <input id="start-time" name="startTime" type="time" required />
+                </label>
+                <label class="reservation-field">
+                  <span>Fim <span aria-hidden="true">*</span></span>
+                  <input id="end-time" name="endTime" type="time" required />
+                </label>
+              </div>
+              <label class="reservation-field">
+                <span>Responsável <span aria-hidden="true">*</span></span>
+                <input
+                  id="responsible-name"
+                  name="responsibleName"
+                  type="text"
+                  maxlength="160"
+                  autocomplete="name"
+                  required
+                />
+              </label>
+              <label class="reservation-field">
+                <span>Finalidade <span aria-hidden="true">*</span></span>
+                <textarea
+                  id="purpose"
+                  name="purpose"
+                  rows="3"
+                  maxlength="500"
+                  required
+                ></textarea>
+              </label>
+              <p class="required-note"><span aria-hidden="true">*</span> Campos obrigatórios</p>
+              <button class="login-button reservation-submit" type="submit">
+                Enviar solicitação
+              </button>
+              <p class="form-feedback" id="form-feedback" role="status" aria-live="polite"></p>
+            </form>
+          </section>
+
+          <section class="reservation-list-panel" aria-labelledby="reservation-list-title">
+            <div class="section-heading reservation-list-heading">
+              <div>
+                <span class="reservations-eyebrow">AGENDA</span>
+                <h2 id="reservation-list-title">Solicitações</h2>
+              </div>
+              <span class="section-count" id="reservations-count" aria-live="polite"></span>
+            </div>
+            <div class="reservation-list" id="reservation-list" aria-live="polite"></div>
+          </section>
+        </section>
+      </main>
+
+      <footer class="reservations-footer">
+        <a href="termos-e-privacidade.html#termos-de-uso">Termos de uso</a>
+        <span aria-hidden="true">·</span>
+        <a href="termos-e-privacidade.html#privacidade">Privacidade</a>
+      </footer>
+    </div>
+  </body>
+</html>

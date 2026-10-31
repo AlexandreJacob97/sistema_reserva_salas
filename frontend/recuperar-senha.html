@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Recupere o acesso à sua conta reserve.me."
+    />
+    <title>Recuperar senha | reserve.me</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Creepster&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="recuperar-senha.js" defer></script>
+  </head>
+  <body>
+    <main class="login-page">
+      <section class="login-panel" aria-labelledby="recovery-title">
+        <a class="brand" href="index.html" aria-label="reserve.me">
+          reserve<span>.me</span>
+        </a>
+
+        <h1 class="recovery-title" id="recovery-title">Recuperar senha</h1>
+        <p class="recovery-description">
+          Informe seu email para receber as instruções de recuperação.
+        </p>
+
+        <form class="login-form" novalidate>
+          <div class="field">
+            <label class="visually-hidden" for="email">Email</label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              placeholder="Email"
+              autocomplete="email"
+              aria-describedby="required-note email-error"
+              required
+            />
+            <p class="field-error" id="email-error" aria-live="polite"></p>
+          </div>
+
+          <p class="required-note" id="required-note">
+            <span aria-hidden="true">*</span> Campo obrigatório
+          </p>
+
+          <button class="login-button" type="submit">
+            Enviar instruções
+          </button>
+
+          <a class="forgot-password" href="index.html">Voltar para entrar</a>
+        </form>
+      </section>
+
+      <footer class="page-footer">
+        <a href="termos-e-privacidade.html#termos-de-uso">Termos de uso</a>
+        <span aria-hidden="true">·</span>
+        <a href="termos-e-privacidade.html#privacidade">Privacidade</a>
+      </footer>
+    </main>
+  </body>
+</html>
