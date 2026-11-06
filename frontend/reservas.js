@@ -3,6 +3,8 @@ const roomSelect = document.querySelector("#room-id");
 const reservationList = document.querySelector("#reservation-list");
 const reservationForm = document.querySelector("#reservation-form");
 const formFeedback = document.querySelector("#form-feedback");
+const studentCountInput = document.querySelector("#student-count");
+const capacityFeedback = document.querySelector("#capacity-feedback");
 
 function createElement(tag, className, text) {
   const element = document.createElement(tag);
@@ -21,7 +23,11 @@ async function request(path, options) {
   const payload = await response.json();
 
   if (!response.ok) {
-    throw new Error(payload.error || "Não foi possível concluir a solicitação.");
+    const error = new Error(
+      payload.error || "Não foi possível concluir a solicitação.",
+    );
+    error.status = response.status;
+    throw error;
   }
 
   return payload;
@@ -35,7 +41,10 @@ function renderRooms(rooms) {
 
   for (const room of rooms) {
     const card = createElement("article", "room-card");
+    card.dataset.capacity = String(room.capacity);
     const roomName = createElement("h3", "", room.name);
+    const header = createElement("div", "room-card-header");
+    header.append(roomName);
     const details = createElement(
       "p",
       "room-details",
@@ -47,9 +56,84 @@ function renderRooms(rooms) {
       resourceList.append(createElement("li", "", resource));
     }
 
-    card.append(roomName, details, resourceList);
+    card.append(header, details, resourceList);
     roomList.append(card);
-    roomSelect.add(new Option(`${room.name} — ${room.floor}`, String(room.id)));
+    const label = `${room.name} — ${room.floor}`;
+    const option = new Option(label, String(room.id));
+    option.dataset.label = label;
+    option.dataset.capacity = String(room.capacity);
+    roomSelect.add(option);
+  }
+
+  updateRoomAvailability();
+}
+
+function updateRoomAvailability() {
+  const studentCount = Number(studentCountInput.value);
+  const hasValidCount =
+    studentCountInput.value !== "" &&
+    Number.isSafeInteger(studentCount) &&
+    studentCount > 0;
+  let availableRooms = 0;
+
+  for (const option of roomSelect.options) {
+    if (!option.value) continue;
+
+    const isCompatible =
+      hasValidCount && Number(option.dataset.capacity) >= studentCount;
+    if (isCompatible) availableRooms += 1;
+    option.textContent = hasValidCount && !isCompatible
+      ? `${option.dataset.label} — capacidade insuficiente`
+      : option.dataset.label;
+  }
+
+  for (const card of roomList.querySelectorAll(".room-card")) {
+    const isCompatible =
+      hasValidCount && Number(card.dataset.capacity) >= studentCount;
+    card.classList.toggle("room-card-compatible", isCompatible);
+    card.classList.toggle(
+      "room-card-incompatible",
+      hasValidCount && !isCompatible,
+    );
+
+    let badge = card.querySelector(".room-capacity-badge");
+    if (!hasValidCount) {
+      badge?.remove();
+      continue;
+    }
+
+    if (!badge) {
+      badge = createElement("span", "room-capacity-badge");
+      card.querySelector(".room-card-header").append(badge);
+    }
+    badge.className = `room-capacity-badge ${
+      isCompatible ? "room-capacity-badge-compatible" : "room-capacity-badge-incompatible"
+    }`;
+    badge.textContent = isCompatible
+      ? "Comporta a turma"
+      : "Capacidade insuficiente";
+  }
+
+  const selectedRoomIsIncompatible =
+    hasValidCount &&
+    roomSelect.value !== "" &&
+    Number(roomSelect.selectedOptions[0].dataset.capacity) < studentCount;
+  const selectionMessage = selectedRoomIsIncompatible
+    ? " A sala selecionada não comporta essa turma."
+    : "";
+
+  if (!hasValidCount) {
+    capacityFeedback.textContent =
+      "Informe a quantidade de alunos para ver as salas compatíveis.";
+  } else if (availableRooms === 0) {
+    capacityFeedback.textContent =
+      `Nenhuma das ${roomSelect.options.length - 1} salas comporta ${studentCount} alunos.${selectionMessage}`;
+  } else if (availableRooms === 1) {
+    capacityFeedback.textContent =
+      `1 sala, de ${roomSelect.options.length - 1}, tem capacidade para ${studentCount} alunos.${selectionMessage}`;
+  } else {
+    capacityFeedback.textContent =
+      `${availableRooms} de ${roomSelect.options.length - 1} salas comportam ${studentCount} alunos.${selectionMessage}`;
   }
 }
 
@@ -100,6 +184,8 @@ function getLocalDate() {
 }
 
 document.querySelector("#requested-date").min = getLocalDate();
+studentCountInput.addEventListener("input", updateRoomAvailability);
+roomSelect.addEventListener("change", updateRoomAvailability);
 
 reservationForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -107,6 +193,8 @@ reservationForm.addEventListener("submit", async (event) => {
 
   const submitButton = reservationForm.querySelector('button[type="submit"]');
   submitButton.disabled = true;
+  formFeedback.classList.remove("is-error");
+  formFeedback.setAttribute("role", "status");
 
   try {
     const formData = new FormData(reservationForm);
@@ -115,6 +203,7 @@ reservationForm.addEventListener("submit", async (event) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         roomId: Number(formData.get("roomId")),
+        studentCount: Number(formData.get("studentCount")),
         date: formData.get("date"),
         startTime: formData.get("startTime"),
         endTime: formData.get("endTime"),
@@ -124,6 +213,7 @@ reservationForm.addEventListener("submit", async (event) => {
     });
 
     reservationForm.reset();
+    updateRoomAvailability();
     document.querySelector("#requested-date").min = getLocalDate();
     formFeedback.textContent = "Solicitação enviada. Situação: pendente.";
     try {
@@ -135,6 +225,10 @@ reservationForm.addEventListener("submit", async (event) => {
     }
   } catch (error) {
     formFeedback.textContent = error.message;
+    formFeedback.classList.add("is-error");
+    const isConflict = error.status === 409;
+    formFeedback.setAttribute("role", isConflict ? "alert" : "status");
+    formFeedback.setAttribute("aria-live", isConflict ? "assertive" : "polite");
   } finally {
     submitButton.disabled = false;
   }

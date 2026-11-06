@@ -14,6 +14,8 @@ function isValidReservation(body) {
     !body ||
     !Number.isInteger(body.roomId) ||
     body.roomId < 1 ||
+    !Number.isSafeInteger(body.studentCount) ||
+    body.studentCount < 1 ||
     typeof body.date !== "string" ||
     !isValidDate(body.date) ||
     typeof body.startTime !== "string" ||
@@ -96,13 +98,15 @@ export function createApp({ pool, logger = console }) {
   app.post("/api/reservations", async (request, response) => {
     if (!isValidReservation(request.body)) {
       response.status(400).json({
-        error: "Informe sala, data, horários válidos, responsável e finalidade.",
+        error:
+          "Informe a sala, a quantidade de alunos, a data, os horários, o responsável e a finalidade corretamente.",
       });
       return;
     }
 
     const {
       roomId,
+      studentCount,
       date,
       startTime,
       endTime,
@@ -116,13 +120,21 @@ export function createApp({ pool, logger = console }) {
       await connection.beginTransaction();
 
       const [rooms] = await connection.execute(
-        "SELECT id FROM rooms WHERE id = ? FOR UPDATE",
+        "SELECT id, capacity FROM rooms WHERE id = ? FOR UPDATE",
         [roomId],
       );
 
       if (rooms.length === 0) {
         await connection.rollback();
         response.status(404).json({ error: "Sala não encontrada." });
+        return;
+      }
+
+      if (studentCount > rooms[0].capacity) {
+        await connection.rollback();
+        response.status(422).json({
+          error: `A sala selecionada comporta até ${rooms[0].capacity} alunos. Escolha uma sala com capacidade suficiente.`,
+        });
         return;
       }
 
@@ -141,7 +153,8 @@ export function createApp({ pool, logger = console }) {
       if (conflicts.length > 0) {
         await connection.rollback();
         response.status(409).json({
-          error: "A sala já possui uma solicitação nesse horário.",
+          error:
+            "Conflito de horário: esta sala já tem uma reserva ou solicitação nesse período. Escolha outro horário.",
         });
         return;
       }

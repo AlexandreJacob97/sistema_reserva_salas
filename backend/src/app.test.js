@@ -125,6 +125,7 @@ test("rejects invalid reservation fields before opening a database connection", 
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       roomId: 1,
+      studentCount: 20,
       date: "2026-02-31",
       startTime: "14:00",
       endTime: "13:00",
@@ -137,11 +138,108 @@ test("rejects invalid reservation fields before opening a database connection", 
   assert.equal(connectionRequested, false);
 });
 
+test("requires a positive whole number of students before opening a database connection", async () => {
+  let connectionRequested = false;
+  const baseUrl = await startServer({
+    pool: {
+      async getConnection() {
+        connectionRequested = true;
+        throw new Error("Should not request a connection");
+      },
+    },
+    logger: { error() {} },
+  });
+
+  const response = await fetch(`${baseUrl}/api/reservations`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      roomId: 1,
+      studentCount: 0,
+      date: "2026-11-06",
+      startTime: "10:00",
+      endTime: "11:00",
+      responsibleName: "Ana Souza",
+      purpose: "Reunião de equipe",
+    }),
+  });
+
+  assert.equal(response.status, 400);
+  assert.equal(connectionRequested, false);
+});
+
+test("rejects a reservation when the room cannot fit the student group", async () => {
+  let conflictChecked = false;
+  let insertedReservation = false;
+  let rolledBack = false;
+  let released = false;
+  const baseUrl = await startServer({
+    pool: {
+      async getConnection() {
+        return {
+          async beginTransaction() {},
+          async rollback() {
+            rolledBack = true;
+          },
+          async commit() {},
+          release() {
+            released = true;
+          },
+          async execute(statement) {
+            if (statement.includes("FROM rooms WHERE id = ? FOR UPDATE")) {
+              return [[{ id: 1, capacity: 20 }]];
+            }
+
+            if (statement.includes("FROM reservations")) {
+              conflictChecked = true;
+              return [[]];
+            }
+
+            if (statement.includes("INSERT INTO reservations")) {
+              insertedReservation = true;
+              return [{ insertId: 7 }];
+            }
+
+            throw new Error("Unexpected query");
+          },
+        };
+      },
+    },
+    logger: { error() {} },
+  });
+
+  const response = await fetch(`${baseUrl}/api/reservations`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      roomId: 1,
+      studentCount: 21,
+      date: "2026-11-06",
+      startTime: "10:00",
+      endTime: "11:00",
+      responsibleName: "Ana Souza",
+      purpose: "Aula com a turma",
+    }),
+  });
+
+  assert.equal(response.status, 422);
+  assert.deepEqual(await response.json(), {
+    error:
+      "A sala selecionada comporta até 20 alunos. Escolha uma sala com capacidade suficiente.",
+  });
+  assert.equal(rolledBack, true);
+  assert.equal(conflictChecked, false);
+  assert.equal(insertedReservation, false);
+  assert.equal(released, true);
+});
+
 test("creates pending reservations and rejects overlapping schedules", async () => {
-  let conflictExists = false;
+  const conflictingRoomIds = new Set();
   let insertedReservation;
   let committed = false;
   let released = 0;
+  const lockedRoomIds = [];
+  const conflictQueries = [];
   const connection = {
     async beginTransaction() {},
     async rollback() {},
@@ -152,12 +250,14 @@ test("creates pending reservations and rejects overlapping schedules", async () 
       released += 1;
     },
     async execute(statement, parameters) {
-      if (statement.includes("SELECT id FROM rooms")) {
-        return [[{ id: parameters[0] }]];
+      if (statement.includes("FROM rooms WHERE id = ? FOR UPDATE")) {
+        lockedRoomIds.push(parameters[0]);
+        return [[{ id: parameters[0], capacity: 30 }]];
       }
 
       if (statement.includes("FROM reservations") && statement.includes("LIMIT 1")) {
-        return [conflictExists ? [{ id: 9 }] : []];
+        conflictQueries.push(statement);
+        return [conflictingRoomIds.has(parameters[0]) ? [{ id: 9 }] : []];
       }
 
       if (statement.includes("INSERT INTO reservations")) {
@@ -168,7 +268,7 @@ test("creates pending reservations and rejects overlapping schedules", async () 
       if (statement.includes("WHERE reservations.id = ?")) {
         return [[{
           id: 7,
-          roomId: 1,
+          roomId: insertedReservation[0],
           roomName: "Sala Horizonte",
           date: "2026-11-06",
           startTime: "10:00",
@@ -192,6 +292,7 @@ test("creates pending reservations and rejects overlapping schedules", async () 
   });
   const reservation = {
     roomId: 1,
+    studentCount: 25,
     date: "2026-11-06",
     startTime: "10:00",
     endTime: "11:00",
@@ -217,7 +318,7 @@ test("creates pending reservations and rejects overlapping schedules", async () 
   ]);
   assert.equal(committed, true);
 
-  conflictExists = true;
+  conflictingRoomIds.add(1);
   committed = false;
   const conflictResponse = await fetch(`${baseUrl}/api/reservations`, {
     method: "POST",
@@ -226,17 +327,39 @@ test("creates pending reservations and rejects overlapping schedules", async () 
   });
 
   assert.equal(conflictResponse.status, 409);
+  assert.deepEqual(await conflictResponse.json(), {
+    error:
+      "Conflito de horário: esta sala já tem uma reserva ou solicitação nesse período. Escolha outro horário.",
+  });
   assert.equal(committed, false);
-  assert.equal(released, 2);
+
+  const differentRoomResponse = await fetch(`${baseUrl}/api/reservations`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...reservation, roomId: 2 }),
+  });
+
+  assert.equal(differentRoomResponse.status, 201);
+  assert.equal((await differentRoomResponse.json()).roomId, 2);
+  assert.equal(committed, true);
+  assert.deepEqual(lockedRoomIds, [1, 1, 2]);
+  assert.equal(conflictQueries.length, 3);
+  assert.ok(conflictQueries.every((statement) => statement.includes("room_id = ?")));
+  assert.ok(conflictQueries.every((statement) => statement.includes("requested_date = ?")));
+  assert.equal(released, 3);
 });
 
-test("seeds exactly four rooms and five reservations", async () => {
+test("seeds seven rooms and ten reservations including simultaneous bookings in different rooms", async () => {
   const sql = await readFile(seedSql, "utf8");
   const roomsSection = sql.split("INSERT INTO rooms")[1].split("ON DUPLICATE KEY UPDATE")[0];
   const reservationsSection = sql
     .split("INSERT INTO reservations")[1]
     .split("ON DUPLICATE KEY UPDATE")[0];
 
-  assert.equal((roomsSection.match(/^\s*\(\d+,/gm) ?? []).length, 4);
-  assert.equal((reservationsSection.match(/^\s*\(\d+,/gm) ?? []).length, 5);
+  assert.equal((roomsSection.match(/^\s*\(\d+,/gm) ?? []).length, 7);
+  assert.equal((reservationsSection.match(/^\s*\(\d+,/gm) ?? []).length, 10);
+  assert.match(sql, /^SET NAMES utf8mb4;/);
+  assert.match(sql, /name = VALUES\(name\)/);
+  assert.match(reservationsSection, /\(6, 5, '2026-11-09', '09:00:00', '10:00:00'/);
+  assert.match(reservationsSection, /\(7, 6, '2026-11-09', '09:00:00', '10:00:00'/);
 });

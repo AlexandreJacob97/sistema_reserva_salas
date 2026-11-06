@@ -41,6 +41,9 @@
             </div>
             <span class="section-count" id="rooms-count" aria-live="polite"></span>
           </div>
+          <p class="capacity-feedback" id="capacity-feedback" aria-live="polite">
+            Informe a quantidade de alunos para ver as salas compatíveis.
+          </p>
           <div class="room-grid" id="room-list" aria-live="polite"></div>
         </section>
 
@@ -53,9 +56,27 @@
             </p>
 
             <form class="reservation-form" id="reservation-form">
+              <label class="reservation-field" for="student-count">
+                <span>Quantidade de alunos na turma <span aria-hidden="true">*</span></span>
+                <input
+                  id="student-count"
+                  name="studentCount"
+                  type="number"
+                  min="1"
+                  step="1"
+                  inputmode="numeric"
+                  aria-describedby="capacity-feedback"
+                  required
+                />
+              </label>
               <label class="reservation-field">
                 <span>Sala <span aria-hidden="true">*</span></span>
-                <select id="room-id" name="roomId" required>
+                <select
+                  id="room-id"
+                  name="roomId"
+                  aria-describedby="capacity-feedback"
+                  required
+                >
                   <option value="">Selecione uma sala</option>
                 </select>
               </label>
